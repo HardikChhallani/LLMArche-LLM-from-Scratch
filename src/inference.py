@@ -3,7 +3,7 @@ import tiktoken
 from src.model import GPT
 from src.config import model_config
 
-def inference(prompt="Once upon a time"):
+def inference(prompt="Section 2 is "):
     """
     Runs inference on the trained model with a given prompt.
     """

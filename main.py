@@ -1,6 +1,6 @@
 import os
 import argparse
-from src.data_preprocessing import prepare_data
+from src.data_processing import prepare_data
 from src.train import training
 from src.inference import inference
 

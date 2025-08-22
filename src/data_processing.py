@@ -2,50 +2,37 @@ import os
 import numpy as np
 from tqdm.auto import tqdm
 import tiktoken
-from datasets import load_dataset
 
 def prepare_data():
     """
-    Downloads and tokenizes the TinyStories dataset, then saves it to binary files.
+    Loads the local indian_legal.txt dataset, tokenizes it,
+    and saves it to binary files.
     """
-    # Download the dataset
-    ds = load_dataset("roneneldan/TinyStories")
+    input_file_path = os.path.join(os.path.dirname(__file__), '..', 'dataset', 'indian_legal.txt')
+
+    # Read the dataset
+    with open(input_file_path, 'r', encoding='utf-8') as f:
+        data = f.read()
+
+    # Split the data into training and validation sets
+    n = len(data)
+    train_data = data[:int(n*0.9)]
+    val_data = data[int(n*0.9):]
 
     # Initialize the tokenizer
     enc = tiktoken.get_encoding("gpt2")
+    train_ids = enc.encode_ordinary(train_data)
+    val_ids = enc.encode_ordinary(val_data)
+    print(f"train has {len(train_ids):,} tokens")
+    print(f"val has {len(val_ids):,} tokens")
 
-    def process(example):
-        ids = enc.encode_ordinary(example['text']) # encode_ordinary ignores any special tokens
-        out = {'ids': ids, 'len': len(ids)}
-        return out
+    # Export to bin files
+    train_ids = np.array(train_ids, dtype=np.uint16)
+    val_ids = np.array(val_ids, dtype=np.uint16)
+    train_ids.tofile('train.bin')
+    val_ids.tofile('validation.bin')
 
-    # Tokenize the dataset if not already done
-    if not os.path.exists("train.bin"):
-        tokenized = ds.map(
-            process,
-            remove_columns=['text'],
-            desc="tokenizing the splits",
-            num_proc=os.cpu_count(),
-        )
-        # Concatenate all the ids in each dataset into one large file
-        for split, dset in tokenized.items():
-            arr_len = np.sum(dset['len'], dtype=np.uint64)
-            filename = f'{split}.bin'
-            dtype = np.uint16 # (can do since enc.max_token_value == 50256 is < 2**16)
-            arr = np.memmap(filename, dtype=dtype, mode='w+', shape=(arr_len,))
-            total_batches = 1024
-
-            idx = 0
-            for batch_idx in tqdm(range(total_batches), desc=f'writing {filename}'):
-                # Batch together samples for faster write
-                batch = dset.shard(num_shards=total_batches, index=batch_idx, contiguous=True).with_format('numpy')
-                arr_batch = np.concatenate(batch['ids'])
-                # Write into mmap
-                arr[idx : idx + len(arr_batch)] = arr_batch
-                idx += len(arr_batch)
-            arr.flush()
-    else:
-        print("train.bin already exists. Skipping tokenization.")
+    print("Data preparation complete. train.bin and validation.bin created.")
 
 if __name__ == '__main__':
     prepare_data()
